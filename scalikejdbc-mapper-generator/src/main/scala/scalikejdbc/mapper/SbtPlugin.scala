@@ -17,6 +17,7 @@ object SbtPlugin extends Plugin {
 
   case class GeneratorSettings(
     packageName: String,
+    templateType: String,
     template: String,
     testTemplate: String,
     lineBreak: String,
@@ -47,6 +48,7 @@ object SbtPlugin extends Plugin {
   private[this] final val GENERATOR = "generator."
   private[this] final val PACKAGE_NAME = GENERATOR + "packageName"
   private[this] final val TEMPLATE = GENERATOR + "template"
+  private[this] final val TEMPLATE_TYPE = GENERATOR + "templateType"
   private[this] final val TEST_TEMPLATE = GENERATOR + "testTemplate"
   private[this] final val LINE_BREAK = GENERATOR + "lineBreak"
   private[this] final val CASE_CLASS_ONLY = GENERATOR + "caseClassOnly"
@@ -60,7 +62,7 @@ object SbtPlugin extends Plugin {
     JDBC_DRIVER, JDBC_URL, JDBC_USER_NAME, JDBC_PASSWORD, JDBC_SCHEMA
   )
   private[this] val generatorKeys = Set(
-    PACKAGE_NAME, TEMPLATE, TEST_TEMPLATE, LINE_BREAK, CASE_CLASS_ONLY,
+    PACKAGE_NAME, TEMPLATE, TEMPLATE_TYPE, TEST_TEMPLATE, LINE_BREAK, CASE_CLASS_ONLY,
     ENCODING, AUTO_CONSTRUCT, DEFAULT_AUTO_SESSION, DATETIME_CLASS, RETURN_COLLECTION_TYPE
   )
   private[this] val allKeys = jdbcKeys ++ generatorKeys
@@ -89,6 +91,7 @@ object SbtPlugin extends Plugin {
     GeneratorSettings(
       packageName = getString(props, PACKAGE_NAME).getOrElse(defaultConfig.packageName),
       template = getString(props, TEMPLATE).getOrElse(defaultConfig.template.name),
+      templateType = getString(props, TEMPLATE_TYPE).getOrElse(defaultConfig.templateType),
       testTemplate = getString(props, TEST_TEMPLATE).getOrElse(GeneratorTestTemplate.specs2unit.name),
       lineBreak = getString(props, LINE_BREAK).getOrElse(defaultConfig.lineBreak.name),
       caseClassOnly = getString(props, CASE_CLASS_ONLY).map(_.toBoolean).getOrElse(defaultConfig.caseClassOnly),
@@ -98,8 +101,8 @@ object SbtPlugin extends Plugin {
       dateTimeClass = getString(props, DATETIME_CLASS).map {
         name => DateTimeClass.map.getOrElse(name, sys.error("does not support " + name))
       }.getOrElse(defaultConfig.dateTimeClass),
-      defaultConfig.tableNameToClassName,
-      defaultConfig.columnNameToFieldName,
+      tableNameToClassName = defaultConfig.tableNameToClassName,
+      columnNameToFieldName = defaultConfig.columnNameToFieldName,
       returnCollectionType = getString(props, RETURN_COLLECTION_TYPE).map { name =>
         ReturnCollectionType.map.getOrElse(name.toLowerCase(en), sys.error(s"does not support $name. support types are ${ReturnCollectionType.map.keys.mkString(", ")}"))
       }.getOrElse(defaultConfig.returnCollectionType)
@@ -145,6 +148,7 @@ object SbtPlugin extends Plugin {
       srcDir = srcDir.getAbsolutePath,
       testDir = testDir.getAbsolutePath,
       packageName = generatorSettings.packageName,
+      templateType = generatorSettings.templateType,
       template = GeneratorTemplate(generatorSettings.template),
       testTemplate = GeneratorTestTemplate(generatorSettings.testTemplate),
       lineBreak = LineBreak(generatorSettings.lineBreak),
@@ -158,7 +162,7 @@ object SbtPlugin extends Plugin {
       returnCollectionType = generatorSettings.returnCollectionType
     )
 
-  private def generator(tableName: String, className: Option[String], srcDir: File, testDir: File, jdbc: JDBCSettings, generatorSettings: GeneratorSettings): Option[CodeGenerator] = {
+  private def generator(tableName: String, className: Option[String], srcDir: File, testDir: File, jdbc: JDBCSettings, generatorSettings: GeneratorSettings): Option[Generator] = {
     val config = generatorConfig(srcDir, testDir, generatorSettings)
     Class.forName(jdbc.driver) // load specified jdbc driver
     val model = Model(jdbc.url, jdbc.username, jdbc.password)
@@ -166,20 +170,26 @@ object SbtPlugin extends Plugin {
       .orElse(model.table(jdbc.schema, tableName.toUpperCase(en)))
       .orElse(model.table(jdbc.schema, tableName.toLowerCase(en)))
       .map { table =>
-        Option(new CodeGenerator(table, className)(config))
+        generatorSettings.templateType match {
+          case "async" => Option(new CodeGeneratorForAsync(table, className)(config))
+          case "sync" | _ => Option(new CodeGenerator(table, className)(config))
+        }
       } getOrElse {
         println("The table is not found.")
         None
       }
   }
 
-  def allGenerators(srcDir: File, testDir: File, jdbc: JDBCSettings, generatorSettings: GeneratorSettings): Seq[CodeGenerator] = {
+  def allGenerators(srcDir: File, testDir: File, jdbc: JDBCSettings, generatorSettings: GeneratorSettings): Seq[Generator] = {
     val config = generatorConfig(srcDir, testDir, generatorSettings)
     val className = None
     Class.forName(jdbc.driver) // load specified jdbc driver
     val model = Model(jdbc.url, jdbc.username, jdbc.password)
     model.allTables(jdbc.schema).map { table =>
-      new CodeGenerator(table, className)(config)
+      generatorSettings.templateType match {
+        case "async" => new CodeGeneratorForAsync(table, className)(config)
+        case "sync" | _ => new CodeGenerator(table, className)(config)
+      }
     }
   }
 

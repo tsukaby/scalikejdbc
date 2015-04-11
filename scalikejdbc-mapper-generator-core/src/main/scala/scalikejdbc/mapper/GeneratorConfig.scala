@@ -3,6 +3,7 @@ package scalikejdbc.mapper
 case class GeneratorConfig(srcDir: String = "src/main/scala",
   testDir: String = "src/test/scala",
   packageName: String = "models",
+  templateType: String = "sync",
   template: GeneratorTemplate = GeneratorTemplate("queryDsl"),
   testTemplate: GeneratorTestTemplate = GeneratorTestTemplate(""),
   lineBreak: LineBreak = LineBreak("\n"),
