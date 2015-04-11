@@ -91,7 +91,7 @@ object SbtPlugin extends Plugin {
     GeneratorSettings(
       packageName = getString(props, PACKAGE_NAME).getOrElse(defaultConfig.packageName),
       template = getString(props, TEMPLATE).getOrElse(defaultConfig.template.name),
-      templateType = getString(props, TEMPLATE_TYPE).getOrElse(defaultConfig.templateType),
+      templateType = getString(props, TEMPLATE_TYPE).getOrElse(defaultConfig.templateType.name),
       testTemplate = getString(props, TEST_TEMPLATE).getOrElse(GeneratorTestTemplate.specs2unit.name),
       lineBreak = getString(props, LINE_BREAK).getOrElse(defaultConfig.lineBreak.name),
       caseClassOnly = getString(props, CASE_CLASS_ONLY).map(_.toBoolean).getOrElse(defaultConfig.caseClassOnly),
@@ -148,8 +148,8 @@ object SbtPlugin extends Plugin {
       srcDir = srcDir.getAbsolutePath,
       testDir = testDir.getAbsolutePath,
       packageName = generatorSettings.packageName,
-      templateType = generatorSettings.templateType,
       template = GeneratorTemplate(generatorSettings.template),
+      templateType = GeneratorTemplateType(generatorSettings.templateType),
       testTemplate = GeneratorTestTemplate(generatorSettings.testTemplate),
       lineBreak = LineBreak(generatorSettings.lineBreak),
       caseClassOnly = generatorSettings.caseClassOnly,
